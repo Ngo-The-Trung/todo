@@ -1,0 +1,13 @@
+[package]
+name = "todo"
+version = "0.1.0"
+authors = ["Ngo The Trung <ngo.the.trung.aczne@gmail.com>"]
+
+[dependencies]
+clap = "2"
+mktemp = "0.3.1"
+chrono = "0.2"
+
+[dependencies.postgres]
+version = "0.13"
+features = ["with-chrono"]

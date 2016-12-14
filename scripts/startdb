@@ -1,0 +1,14 @@
+#!/bin/bash
+
+[ -z $DB_PASSWORD ] && echo '$DB_PASSWORD not defined' && exit 1
+[ -z $DB_USER ] && echo '$DB_USER not defined' && exit 1
+[ -z $DB_NAME ] && echo '$DB_NAME not defined' && exit 1
+[ -z $DB_VOL ] && echo '$DB_VOL not defined' && exit 1
+
+docker run --name postgres \
+    -e POSTGRES_PASSWORD=$DB_PASSWORD \
+    -e POSTGRES_USER=$DB_USER \
+    -e POSTGRES_DB=$DB_NAME \
+    -v $DB_VOL:/var/lib/postgresql/data \
+    -p 5432:5432 \
+    -d postgres
