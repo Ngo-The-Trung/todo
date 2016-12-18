@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS task (
 
     pub fn find_aux(conn: &Connection, id: i32) -> Option<TaskAux> {
         let rows = &conn.query("
-SELECT id, parent_id, title, body, open, date_created, EXTRACT(SECOND FROM \
+SELECT id, parent_id, title, body, open, date_created, EXTRACT(EPOCH FROM \
                     duration)::REAL
 FROM task, (SELECT SUM(note.date_end - note.date_start) as \
                     duration FROM note where note.task_id = id) t
@@ -199,7 +199,7 @@ WHERE id = $1 ORDER BY \
     pub fn find_notes_aux(conn: &Connection, id: i32) -> Vec<NoteAux> {
         let mut result = vec![];
         for row in &conn.query("
-SELECT id, task_id, body, date_start, date_end, EXTRACT(SECOND FROM \
+SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM \
                     date_end - date_start)::REAL as duration FROM note WHERE task_id = $1 ORDER \
                     BY date_start",
                    &[&id])
