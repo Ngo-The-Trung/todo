@@ -150,7 +150,7 @@ fn new_note(parent_id: i32) {
     let conn = connect_db();
     let task = Task::find(&conn, parent_id).expect("Task ID does not exist");
 
-    let template = format!("{}\n==========\n{}", task.body, "Add your note here");
+    let template = format!("{}\n==========\n{}", "Add your note here", task.body);
     let date_start = Local::now();
     let input = read_editor_input(&template).expect("Failed to get user input");
     let date_end = Local::now();
