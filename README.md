@@ -10,3 +10,4 @@ TODO
   - Range?
 - COmmand to change parent_id
 - When creating a task, I think I should start with a note immediately
+- Better output format. For starter, each note should be properly separated
