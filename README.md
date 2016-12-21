@@ -12,3 +12,4 @@ TODO
 - When creating a task, I think I should start with a note immediately
 - Better output format. For starter, each note should be properly separated
 - "leaves" should have optional depth parameter
+- Updating title from new-note should be possible
