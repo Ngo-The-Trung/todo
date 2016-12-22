@@ -14,3 +14,4 @@ TODO
 - "leaves" should have optional depth parameter
 - Updating title from new-note should be possible
 - Task accumulated hours is wrong
+- Connection is acquired too soon, can time out.
