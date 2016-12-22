@@ -152,11 +152,11 @@ CREATE TABLE IF NOT EXISTS task (
 SELECT id, parent_id, title, body, open, date_created, EXTRACT(EPOCH FROM \
                     duration)::REAL
 FROM task, (SELECT SUM(note.date_end - note.date_start) as \
-                    duration FROM note where note.task_id = id) t
-WHERE id = $1 ORDER BY \
+                    duration FROM note where note.task_id = $1) t
+WHERE id = $2 ORDER BY \
                     date_created DESC;
 ",
-                   &[&id])
+                   &[&id, &id])
             .unwrap();
 
         if rows.len() != 1 {
@@ -224,8 +224,10 @@ SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM \
     pub fn open_leaves(conn: &Connection) -> Vec<Task> {
         let mut result = vec![];
         for row in &conn.query("
-SELECT id, parent_id, title, body, open, date_created FROM task WHERE id not in
-(SELECT DISTINCT t1.id FROM task t1, task t2 WHERE t1.id = t2.parent_id) AND open = TRUE ORDER BY date_created DESC",
+SELECT id, parent_id, title, body, open, date_created FROM task WHERE id \
+                    not in
+(SELECT DISTINCT t1.id FROM task t1, task t2 WHERE t1.id = \
+                    t2.parent_id) AND open = TRUE ORDER BY date_created DESC",
                    &[])
             .unwrap() {
             let r = &mut result;
