@@ -134,21 +134,24 @@ fn new_task(parent_id: Option<i32>, title: Option<&str>, body: Option<&str>) {
     let editor_title = title.unwrap_or("Title for your task");
     let editor_body = body.unwrap_or("Description for your task");
     let launch_editor = !(title.is_some() && body.is_some());
-    let conn = connect_db();
     let date_created = Local::now();
     if launch_editor {
         let template = format!("{}\n==========\n{}", editor_title, editor_body);
         let input = read_editor_input(&template).expect("Failed to get user input");
         let (input_title, input_body) = split_title_body(&input);
+        let conn = connect_db();
         Task::new(parent_id, input_title, input_body, date_created).create(&conn);
     } else {
+        let conn = connect_db();
         Task::new(parent_id, editor_title, editor_body, date_created).create(&conn);
     };
 }
 
 fn new_note(parent_id: i32) {
-    let conn = connect_db();
-    let task = Task::find(&conn, parent_id).expect("Task ID does not exist");
+    let task = {
+        let conn = connect_db();
+        Task::find(&conn, parent_id).expect("Task ID does not exist")
+    };
 
     let template = format!("{}\n==========\n{}", "Add your note here", task.body);
     let date_start = Local::now();
@@ -156,6 +159,7 @@ fn new_note(parent_id: i32) {
     let date_end = Local::now();
     let (note_body, new_task_body) = split_title_body(&input);
 
+    let conn = connect_db();
     Note::create(&conn,
                  parent_id,
                  note_body,

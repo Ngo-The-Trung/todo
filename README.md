@@ -13,5 +13,4 @@ TODO
 - Better output format. For starter, each note should be properly separated
 - "leaves" should have optional depth parameter
 - Updating title from new-note should be possible
-- Connection is acquired too soon, can time out.
 - Task accumulated hours should be recursive
