@@ -35,7 +35,7 @@ fn show_leaves() {
 
 use std::collections::HashMap;
 
-fn tree() {
+fn tree(open: bool) {
     let conn = connect_db();
 
     // TODO this assumes tasks are sorted
@@ -82,17 +82,19 @@ fn tree() {
         let top = queue.pop().unwrap();
 
         let t = task_table.get(&top.id).unwrap();
-        for _ in 0..top.indent_level {
-            print!("    ")
-        }
-        println!("{}", *t);
+        if !open || (*t).open {
+            for _ in 0..top.indent_level {
+                print!("    ")
+            }
+            println!("{}", *t);
 
-        if let Some(children) = children_table.get(&top.id) {
-            for id in children {
-                queue.push(State {
-                    id: *id,
-                    indent_level: top.indent_level + 1,
-                });
+            if let Some(children) = children_table.get(&top.id) {
+                for id in children {
+                    queue.push(State {
+                        id: *id,
+                        indent_level: top.indent_level + 1,
+                    });
+                }
             }
         }
     }
@@ -195,7 +197,9 @@ fn main() {
                 .long("body")
                 .takes_value(true)
                 .help("A description for this new task")))
-        .subcommand(SubCommand::with_name("tree").about("List down all tasks in a tree format"))
+        .subcommand(SubCommand::with_name("tree")
+            .about("List down all tasks in a tree format")
+            .arg(Arg::with_name("open").short("o")))
         .subcommand(SubCommand::with_name("view-task")
             .help("View a task's contents & metadata")
             .arg(Arg::with_name("task")
@@ -219,36 +223,43 @@ fn main() {
                 .takes_value(true)
                 .help("Task's ID")));
 
-    let matches = app.get_matches();
+    let app_matches = app.get_matches();
+    let subcommand = app_matches.subcommand_name().expect("Please use one of the subcommands");
+    let matches = app_matches.subcommand_matches(subcommand).unwrap();
 
-    if let Some(matches) = matches.subcommand_matches("new-task") {
-        let parent_id_str = matches.value_of("parent");
-        let parent_id = match parent_id_str {
-            Some(s) => Some(i32::from_str(s).expect("Cannot cast to i32")),
-            None => None,
-        };
-        new_task(parent_id,
-                 matches.value_of("title"),
-                 matches.value_of("body"))
-    } else if let Some(_) = matches.subcommand_matches("tree") {
-        // TODO add argument to specify root node
-        tree()
-    } else if let Some(matches) = matches.subcommand_matches("view-task") {
-        let task_id_str = matches.value_of("task").unwrap();
-        let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
+    match subcommand {
+        "new-task" => {
+            let parent_id_str = matches.value_of("parent");
+            let parent_id = match parent_id_str {
+                Some(s) => Some(i32::from_str(s).expect("Cannot cast to i32")),
+                None => None,
+            };
+            new_task(parent_id,
+                     matches.value_of("title"),
+                     matches.value_of("body"))
+        }
+        "tree" => {
+            // TODO add argument to specify root node
+            let open = matches.is_present("open");
+            tree(open)
+        }
+        "view-task" => {
+            let task_id_str = matches.value_of("task").unwrap();
+            let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
 
-        view_task(task_id)
-    } else if let Some(_) = matches.subcommand_matches("leaves") {
-        show_leaves()
-    } else if let Some(matches) = matches.subcommand_matches("new-note") {
-        let task_id_str = matches.value_of("task").unwrap();
-        let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
-        new_note(task_id);
-    } else if let Some(matches) = matches.subcommand_matches("finish") {
-        let task_id_str = matches.value_of("task").unwrap();
-        let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
-        finish(task_id);
-    } else {
-        println!("Please use one of the subcommands")
+            view_task(task_id)
+        }
+        "leaves" => show_leaves(),
+        "new-note" => {
+            let task_id_str = matches.value_of("task").unwrap();
+            let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
+            new_note(task_id);
+        }
+        "finish" => {
+            let task_id_str = matches.value_of("task").unwrap();
+            let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
+            finish(task_id);
+        }
+        _ => {}
     }
 }
