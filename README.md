@@ -15,4 +15,3 @@ TODO
 - Updating title from new-note should be possible
 - Task accumulated hours should be recursive
 - Add date_finished
-- Done tasks should not be considered leaves anymore - their parents should be the leaves.

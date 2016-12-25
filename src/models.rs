@@ -224,10 +224,11 @@ SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM \
     pub fn open_leaves(conn: &Connection) -> Vec<Task> {
         let mut result = vec![];
         for row in &conn.query("
-SELECT id, parent_id, title, body, open, date_created FROM task WHERE id \
-                    not in
-(SELECT DISTINCT t1.id FROM task t1, task t2 WHERE t1.id = \
-                    t2.parent_id) AND open = TRUE ORDER BY date_created DESC",
+SELECT t1.id, t1.parent_id, t1.title, t1.body, t1.open, t1.date_created \
+                    FROM task t1 WHERE NOT EXISTS (SELECT t2.id FROM task t2 WHERE t1.id = \
+                    t2.parent_id AND t2.open = TRUE) AND t1.open = TRUE
+ORDER BY date_created \
+                    DESC",
                    &[])
             .unwrap() {
             let r = &mut result;
