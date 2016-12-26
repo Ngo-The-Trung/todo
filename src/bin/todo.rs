@@ -6,7 +6,7 @@ extern crate chrono;
 use std::str::FromStr;
 
 use self::todo::connect_db;
-use self::todo::models::{Task, Note};
+use self::todo::models::{Task, Note, Template, create_tables};
 use self::todo::utils::read_editor_input;
 
 use chrono::*;
@@ -23,6 +23,11 @@ fn test_split_title_body() {
     let (title, body) = split_title_body(&str);
     assert_eq!(title, "Hello");
     assert_eq!(body, "World");
+}
+
+fn init() {
+    let conn = connect_db();
+    create_tables(&conn)
 }
 
 fn show_leaves() {
@@ -132,9 +137,18 @@ fn view_task(task_id: i32) {
     }
 }
 
-fn new_task(parent_id: Option<i32>, title: Option<&str>, body: Option<&str>) {
+fn new_task(parent_id: Option<i32>,
+            title: Option<&str>,
+            body: Option<&str>,
+            template: Option<&str>) {
+    let task_body = if let Some(name) = template {
+        let conn = connect_db();
+        Template::existing(&conn, name).unwrap()
+    } else {
+        String::from("Description for your task")
+    };
     let editor_title = title.unwrap_or("Title for your task");
-    let editor_body = body.unwrap_or("Description for your task");
+    let editor_body = body.unwrap_or(&task_body);
     let launch_editor = !(title.is_some() && body.is_some());
     let date_created = Local::now();
     if launch_editor {
@@ -149,13 +163,20 @@ fn new_task(parent_id: Option<i32>, title: Option<&str>, body: Option<&str>) {
     };
 }
 
-fn new_note(parent_id: i32) {
+fn new_note(parent_id: i32, template: Option<&str>) {
     let task = {
         let conn = connect_db();
         Task::find(&conn, parent_id).expect("Task ID does not exist")
     };
 
-    let template = format!("{}\n==========\n{}", "Add your note here", task.body);
+    let note_body = if let Some(name) = template {
+        let conn = connect_db();
+        Template::existing(&conn, name).unwrap()
+    } else {
+        String::from("Add your note here")
+    };
+
+    let template = format!("{}\n==========\n{}", &note_body, task.body);
     let date_start = Local::now();
     let input = read_editor_input(&template).expect("Failed to get user input");
     let date_end = Local::now();
@@ -176,11 +197,26 @@ fn finish(task_id: i32) {
     Task::finish(&conn, task_id);
 }
 
+fn new_template(name: &str) {
+    let existing = {
+        let conn = connect_db();
+        Template::existing(&conn, name)
+    };
+
+    let template = existing.unwrap_or(String::from("Type your template body here"));
+
+    let body = read_editor_input(&template).expect("Failed to get user input");
+    let conn = connect_db();
+    Template::upsert(&conn, name, &body);
+    ()
+}
+
 fn main() {
     let app = App::new("Todo list")
         .version("0.0")
         .author("Ngo The Trung <ngo.the.trung.aczne@gmail.com>")
         .about("My todo list")
+        .subcommand(SubCommand::with_name("init").about("Initialize the tables"))
         .subcommand(SubCommand::with_name("new-task")
             .usage("Adds a new task entry, outputting its ID")
             .arg(Arg::with_name("parent")
@@ -188,15 +224,18 @@ fn main() {
                 .takes_value(true)
                 .help("Parent task's ID"))
             .arg(Arg::with_name("title")
-                .short("t")
                 .long("title")
                 .takes_value(true)
                 .help("A title for this new task"))
             .arg(Arg::with_name("body")
-                .short("b")
                 .long("body")
                 .takes_value(true)
-                .help("A description for this new task")))
+                .help("A description for this new task"))
+            .arg(Arg::with_name("template")
+                .short("t")
+                .long("template")
+                .takes_value(true)
+                .help("A template for this note's body")))
         .subcommand(SubCommand::with_name("tree")
             .about("List down all tasks in a tree format")
             .arg(Arg::with_name("open").short("o")))
@@ -214,29 +253,44 @@ fn main() {
                 .index(1)
                 .required(true)
                 .takes_value(true)
-                .help("Task's ID")))
+                .help("Task's ID"))
+            .arg(Arg::with_name("template")
+                .short("t")
+                .long("template")
+                .takes_value(true)
+                .help("A template for this note's body")))
         .subcommand(SubCommand::with_name("finish")
             .help("Mark a task as done")
             .arg(Arg::with_name("task")
                 .index(1)
                 .required(true)
                 .takes_value(true)
-                .help("Task's ID")));
+                .help("Task's ID")))
+        .subcommand(SubCommand::with_name("new-template")
+            .help("Create a new template")
+            .arg(Arg::with_name("name")
+                .index(1)
+                .required(true)
+                .takes_value(true)
+                .help("Template's name (unique)")));
 
     let app_matches = app.get_matches();
     let subcommand = app_matches.subcommand_name().expect("Please use one of the subcommands");
     let matches = app_matches.subcommand_matches(subcommand).unwrap();
 
     match subcommand {
+        "init" => init(),
         "new-task" => {
             let parent_id_str = matches.value_of("parent");
             let parent_id = match parent_id_str {
                 Some(s) => Some(i32::from_str(s).expect("Cannot cast to i32")),
                 None => None,
             };
+            let template = matches.value_of("template");
             new_task(parent_id,
                      matches.value_of("title"),
-                     matches.value_of("body"))
+                     matches.value_of("body"),
+                     template)
         }
         "tree" => {
             // TODO add argument to specify root node
@@ -253,12 +307,17 @@ fn main() {
         "new-note" => {
             let task_id_str = matches.value_of("task").unwrap();
             let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
-            new_note(task_id);
+            let template = matches.value_of("template");
+            new_note(task_id, template);
         }
         "finish" => {
             let task_id_str = matches.value_of("task").unwrap();
             let task_id = i32::from_str(task_id_str).expect("Cannot cast to i32");
             finish(task_id);
+        }
+        "new-template" => {
+            let name = matches.value_of("name").unwrap();
+            new_template(name);
         }
         _ => {}
     }

@@ -44,14 +44,58 @@ pub struct NoteAux {
     pub duration_seconds: f32,
 }
 
+pub struct Template {
+    pub name: String,
+    pub body: String,
+}
+
 pub fn create_tables(conn: &Connection) {
     Task::create_table(conn);
     Note::create_table(conn);
+    Template::create_table(conn);
 }
 
 pub fn drop_tables(conn: &Connection) {
     Task::drop_table(conn);
     Note::drop_table(conn);
+    Template::drop_table(conn);
+}
+
+impl Template {
+    pub fn create_table(conn: &Connection) {
+        conn.execute("
+CREATE TABLE IF NOT EXISTS template (
+    name    TEXT PRIMARY KEY,
+    body    TEXT NOT NULL
+);
+",
+                     &[])
+            .unwrap();
+    }
+
+    pub fn drop_table(conn: &Connection) {
+        conn.execute("DROP TABLE IF EXISTS template CASCADE", &[]).unwrap();
+    }
+
+    pub fn upsert(conn: &Connection, name: &str, body: &str) {
+        conn.execute("INSERT INTO template(name, body) VALUES ($1, $2) ON CONFLICT (name) DO \
+                      UPDATE SET BODY = $2",
+                     &[&name, &body])
+            .unwrap();
+    }
+
+    // returns the body
+    pub fn existing(conn: &Connection, name: &str) -> Option<String> {
+        let rows = &conn.query("SELECT body FROM template WHERE name = $1", &[&name])
+            .unwrap();
+
+        if rows.len() != 1 {
+            None
+        } else {
+            let row = rows.get(0);
+            Some(row.get(0))
+        }
+    }
 }
 
 impl Task {
