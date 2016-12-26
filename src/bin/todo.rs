@@ -4,6 +4,8 @@ extern crate mktemp;
 extern crate chrono;
 
 use std::str::FromStr;
+use std::io;
+use std::clone::Clone;
 
 use self::todo::connect_db;
 use self::todo::models::{Task, Note, Template, create_tables};
@@ -23,6 +25,29 @@ fn test_split_title_body() {
     let (title, body) = split_title_body(&str);
     assert_eq!(title, "Hello");
     assert_eq!(body, "World");
+}
+
+fn template_choice(default: &str) -> String {
+    let conn = connect_db();
+    let templates = Template::all(&conn);
+
+    if templates.len() == 0 {
+        return default.to_owned();
+    }
+
+    println!("Enter the choice of your template:");
+    let mut i = 0;
+    for template in &templates {
+        i += 1;
+        println!("{:2} - {}", i, template.name);
+    }
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).expect("Cannot read from stdin");
+    let index = usize::from_str(&input.trim()).expect("Cannot parse int");
+
+    // yay for panic
+    templates[index - 1].body.to_owned()
 }
 
 fn init() {
@@ -145,7 +170,7 @@ fn new_task(parent_id: Option<i32>,
         let conn = connect_db();
         Template::existing(&conn, name).unwrap()
     } else {
-        String::from("Description for your task")
+        template_choice("Description for your task")
     };
     let editor_title = title.unwrap_or("Title for your task");
     let editor_body = body.unwrap_or(&task_body);

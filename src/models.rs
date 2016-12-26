@@ -44,6 +44,7 @@ pub struct NoteAux {
     pub duration_seconds: f32,
 }
 
+#[derive(Debug, Clone)]
 pub struct Template {
     pub name: String,
     pub body: String,
@@ -95,6 +96,19 @@ CREATE TABLE IF NOT EXISTS template (
             let row = rows.get(0);
             Some(row.get(0))
         }
+    }
+
+    pub fn all(conn: &Connection) -> Vec<Template> {
+        let mut result = vec![];
+        for row in &conn.query("SELECT name, body FROM template ORDER BY name", &[])
+            .unwrap() {
+            let r = &mut result;
+            r.push(Template {
+                name: row.get(0),
+                body: row.get(1),
+            });
+        }
+        result
     }
 }
 
