@@ -14,3 +14,4 @@ TODO
 - Updating title from new-note should be possible
 - Task accumulated hours should be recursive
 - Add date_finished
+- "Last-week" and "last-month" should be displayed by defaults for tasks
