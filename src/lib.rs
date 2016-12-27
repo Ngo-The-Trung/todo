@@ -10,6 +10,7 @@ use std::env::var;
 use std::fs::File;
 use std::io::prelude::*;
 
+#[derive(Debug)]
 pub enum Error {
     IO,
     Env,
@@ -37,9 +38,9 @@ fn read_todorc() -> Result<String, Error> {
 }
 
 pub fn connect_db() -> Connection {
-    let db_url = match read_todorc() {
+    let db_url = match var("DATABASE_URL") {
         Ok(url) => url,
-        Err(_) => var("DATABASE_URL").expect("$DATABASE_URL is not set"),
+        Err(_) => read_todorc().expect("$DATABASE_URL is not set"),
     };
     Connection::connect(db_url, TlsMode::None).expect("Failed to establish database connection")
 }
