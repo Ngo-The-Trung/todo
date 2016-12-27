@@ -15,3 +15,4 @@ TODO
 - Task accumulated hours should be recursive
 - Add date_finished
 - "Last-week" and "last-month" should be displayed by defaults for tasks
+- Ability to create tasks from a flat list
