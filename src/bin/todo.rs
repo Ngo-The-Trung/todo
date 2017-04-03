@@ -8,20 +8,20 @@ use std::io;
 use std::clone::Clone;
 
 use self::todo::connect_db;
-use self::todo::models::{Task, Note, Template, create_tables};
+use self::todo::models::{Task, Note, NoteAux, Template, create_tables};
 use self::todo::utils::read_editor_input;
 
 use chrono::*;
 use clap::{Arg, App, SubCommand};
 
 fn split_title_body(text: &str) -> (&str, &str) {
-    // TODO This unwrap should be handled
-    let pos = text.find("\n==========\n").unwrap();
-    return (&text[0..pos], &text[pos + 12..text.len()]);
+    // TODO Handle this failure
+    let result: Vec<&str> = text.split("\n==========\n").take(2).collect();
+    return (result[0], result[1]);
 }
 #[test]
 fn test_split_title_body() {
-    let str = "Hello\n==========\nWorld";
+    let str = "Hello\n==========\nWorld\n==========\nSkip this part";
     let (title, body) = split_title_body(&str);
     assert_eq!(title, "Hello");
     assert_eq!(body, "World");
@@ -137,6 +137,23 @@ fn humanize_duration(seconds: f32) -> (i32, i32) {
     (hours as i32, minutes as i32)
 }
 
+fn dump_notes(notes: Vec<NoteAux>) -> String {
+    let mut result = "".to_string();
+    for note in notes {
+        let (hours, minutes) = humanize_duration(note.duration_seconds);
+        result.push_str(
+        &format!("{}: {:02} hours {:02} minutes on {}-{}-{} \n{}\n",
+                 note.id,
+                 hours,
+                 minutes,
+                 note.date_start.day(),
+                 note.date_start.month(),
+                 note.date_start.year(),
+                 note.body));
+    }
+    result
+}
+
 fn view_task(task_id: i32) {
     let conn = connect_db();
     let task = Task::find_aux(&conn, task_id).expect("Task ID does not exist");
@@ -149,17 +166,7 @@ fn view_task(task_id: i32) {
 
     let notes = Task::find_notes_aux(&conn, task_id);
 
-    for note in notes {
-        let (hours, minutes) = humanize_duration(note.duration_seconds);
-        println!("{}: {:02} hours {:02} minutes on {}-{}-{} \n{}\n",
-                 note.id,
-                 hours,
-                 minutes,
-                 note.date_start.day(),
-                 note.date_start.month(),
-                 note.date_start.year(),
-                 note.body);
-    }
+    println!("{}", dump_notes(notes))
 }
 
 fn new_task(parent_id: Option<i32>,
@@ -189,10 +196,9 @@ fn new_task(parent_id: Option<i32>,
 }
 
 fn new_note(parent_id: i32, template: Option<&str>) {
-    let task = {
-        let conn = connect_db();
-        Task::find(&conn, parent_id).expect("Task ID does not exist")
-    };
+    let conn = connect_db();
+    let task = Task::find(&conn, parent_id).expect("Task ID does not exist");
+    let notes = Task::find_notes_aux(&conn, task.id);
 
     let note_body = if let Some(name) = template {
         let conn = connect_db();
@@ -201,7 +207,7 @@ fn new_note(parent_id: i32, template: Option<&str>) {
         String::from("Add your note here")
     };
 
-    let template = format!("{}\n==========\n{}", &note_body, task.body);
+    let template = format!("{}\n==========\n{}\n==========\n{}", &note_body, task.body, dump_notes(notes));
     let date_start = Local::now();
     let input = read_editor_input(&template).expect("Failed to get user input");
     let date_end = Local::now();
