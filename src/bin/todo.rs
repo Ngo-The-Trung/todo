@@ -8,7 +8,7 @@ use std::io;
 use std::clone::Clone;
 
 use self::todo::connect_db;
-use self::todo::models::{Task, Note, NoteAux, Template, create_tables};
+use self::todo::models::{Task, Note, NoteAux, Review, Template, create_tables};
 use self::todo::utils::read_editor_input;
 
 use chrono::*;
@@ -43,7 +43,9 @@ fn template_choice(default: &str) -> String {
     }
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input).expect("Cannot read from stdin");
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Cannot read from stdin");
     let index = usize::from_str(&input.trim()).expect("Cannot parse int");
 
     // yay for panic
@@ -86,7 +88,8 @@ fn tree(open: bool) {
     for task in &tasks {
         if let Some(parent_id) = task.parent_id {
             let id = task.id;
-            children_table.get_mut(&parent_id)
+            children_table
+                .get_mut(&parent_id)
                 .expect("Cannot unwrap table.get_mut()")
                 .push(id);
             is_root_table.insert(id, false);
@@ -102,9 +105,9 @@ fn tree(open: bool) {
     for (id, _is_root) in &is_root_table {
         if *_is_root {
             queue.push(State {
-                id: *id,
-                indent_level: 0,
-            })
+                           id: *id,
+                           indent_level: 0,
+                       })
         }
     }
 
@@ -121,9 +124,9 @@ fn tree(open: bool) {
             if let Some(children) = children_table.get(&top.id) {
                 for id in children {
                     queue.push(State {
-                        id: *id,
-                        indent_level: top.indent_level + 1,
-                    });
+                                   id: *id,
+                                   indent_level: top.indent_level + 1,
+                               });
                 }
             }
         }
@@ -141,15 +144,68 @@ fn dump_notes(notes: Vec<NoteAux>) -> String {
     let mut result = "".to_string();
     for note in notes {
         let (hours, minutes) = humanize_duration(note.duration_seconds);
-        result.push_str(
-        &format!("{}: {:02} hours {:02} minutes on {}-{}-{} \n{}\n",
-                 note.id,
-                 hours,
-                 minutes,
-                 note.date_start.day(),
-                 note.date_start.month(),
-                 note.date_start.year(),
-                 note.body));
+        result.push_str(&format!("{}: {:02} hours {:02} minutes on {}-{}-{} \n{}\n",
+                                 note.id,
+                                 hours,
+                                 minutes,
+                                 note.date_start.day(),
+                                 note.date_start.month(),
+                                 note.date_start.year(),
+                                 note.body));
+    }
+    result
+}
+
+fn indent(text: String, level: i32) -> String {
+    let mut prefix = "".to_string();
+    for _ in 0..level {
+        prefix.push_str(" ")
+    }
+
+    let mut result = "".to_string();
+    let lines: Vec<&str> = text.split("\n").collect();
+    for i in 0..lines.len() {
+        let line = lines[i];
+        result.push_str(&format!("{}{}", prefix, line));
+        if i != lines.len() - 1 {
+            result.push_str("\n");
+        }
+    }
+    result
+}
+#[test]
+fn test_indent() {
+    let str = "def my_func():
+    print 'xd'
+    if 1 < 2:
+        print 'haha'";
+    let expected = "    def my_func():
+        print 'xd'
+        if 1 < 2:
+            print 'haha'";
+    let result = indent(str.to_string(), 4);
+    println!("\nresult:\n{}", result);
+    println!("\nexpected:\n{}", expected);
+    assert_eq!(result, expected);
+}
+
+fn dump_reviews(reviews: Vec<Review>) -> String {
+    let mut result = "".to_string();
+    // not gonna make a hash table for this; assumes the vector is sorted by task_id
+    let mut prev = -1;
+    for review in reviews {
+        if review.task_id != prev {
+            let status = if review.open { "OPEN" } else { "DONE" };
+            prev = review.task_id;
+            result.push_str(&format!("\n{}: [{}] {}\n", review.task_id, status, review.task_title));
+        }
+        result.push_str(&indent(format!("{}: on {}-{}-{}\n{}\n",
+                                        review.note_id,
+                                        review.last_updated.day(),
+                                        review.last_updated.month(),
+                                        review.last_updated.year(),
+                                        &indent(review.note_body, 4)),
+                                4))
     }
     result
 }
@@ -207,7 +263,10 @@ fn new_note(parent_id: i32, template: Option<&str>) {
         String::from("Add your note here")
     };
 
-    let template = format!("{}\n==========\n{}\n==========\n{}", &note_body, task.body, dump_notes(notes));
+    let template = format!("{}\n==========\n{}\n==========\n{}",
+                           &note_body,
+                           task.body,
+                           dump_notes(notes));
     let date_start = Local::now();
     let input = read_editor_input(&template).expect("Failed to get user input");
     let date_end = Local::now();
@@ -240,6 +299,13 @@ fn new_template(name: &str) {
     let conn = connect_db();
     Template::upsert(&conn, name, &body);
     ()
+}
+
+fn review(days: i32) {
+    let conn = connect_db();
+    let reviews = Task::find_recently_updated(&conn, days);
+
+    println!("{}", dump_reviews(reviews))
 }
 
 fn main() {
@@ -303,10 +369,19 @@ fn main() {
                 .index(1)
                 .required(true)
                 .takes_value(true)
-                .help("Template's name (unique)")));
+                .help("Template's name (unique)")))
+        .subcommand(SubCommand::with_name("review")
+            .help("Review recently updated & finished tasks")
+            .arg(Arg::with_name("days")
+                .index(1)
+                .required(true)
+                .takes_value(true)
+                .help("Number of days into the past to search for updated/finished tasks")));
 
     let app_matches = app.get_matches();
-    let subcommand = app_matches.subcommand_name().expect("Please use one of the subcommands");
+    let subcommand = app_matches
+        .subcommand_name()
+        .expect("Please use one of the subcommands");
     let matches = app_matches.subcommand_matches(subcommand).unwrap();
 
     match subcommand {
@@ -349,6 +424,11 @@ fn main() {
         "new-template" => {
             let name = matches.value_of("name").unwrap();
             new_template(name);
+        }
+        "review" => {
+            let days_str = matches.value_of("days").unwrap();
+            let days = i32::from_str(days_str).expect("Cannot cast to i32");
+            review(days);
         }
         _ => {}
     }

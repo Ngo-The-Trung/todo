@@ -50,6 +50,16 @@ pub struct Template {
     pub body: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct Review {
+    pub task_id: i32,
+    pub task_title: String,
+    pub open: bool,
+    pub note_id: i32,
+    pub note_body: String,
+    pub last_updated: DateTime<Local>,
+}
+
 pub fn create_tables(conn: &Connection) {
     Task::create_table(conn);
     Note::create_table(conn);
@@ -75,7 +85,8 @@ CREATE TABLE IF NOT EXISTS template (
     }
 
     pub fn drop_table(conn: &Connection) {
-        conn.execute("DROP TABLE IF EXISTS template CASCADE", &[]).unwrap();
+        conn.execute("DROP TABLE IF EXISTS template CASCADE", &[])
+            .unwrap();
     }
 
     pub fn upsert(conn: &Connection, name: &str, body: &str) {
@@ -88,7 +99,7 @@ CREATE TABLE IF NOT EXISTS template (
     // returns the body
     pub fn existing(conn: &Connection, name: &str) -> Option<String> {
         let rows = &conn.query("SELECT body FROM template WHERE name = $1", &[&name])
-            .unwrap();
+                        .unwrap();
 
         if rows.len() != 1 {
             None
@@ -101,12 +112,12 @@ CREATE TABLE IF NOT EXISTS template (
     pub fn all(conn: &Connection) -> Vec<Template> {
         let mut result = vec![];
         for row in &conn.query("SELECT name, body FROM template ORDER BY name", &[])
-            .unwrap() {
+                        .unwrap() {
             let r = &mut result;
             r.push(Template {
-                name: row.get(0),
-                body: row.get(1),
-            });
+                       name: row.get(0),
+                       body: row.get(1),
+                   });
         }
         result
     }
@@ -129,7 +140,8 @@ CREATE TABLE IF NOT EXISTS task (
     }
 
     pub fn drop_table(conn: &Connection) {
-        conn.execute("DROP TABLE IF EXISTS task CASCADE", &[]).unwrap();
+        conn.execute("DROP TABLE IF EXISTS task CASCADE", &[])
+            .unwrap();
     }
 
     pub fn new(parent_id: Option<i32>,
@@ -182,8 +194,8 @@ CREATE TABLE IF NOT EXISTS task (
         for row in
             &conn.query("SELECT id, parent_id, title, body, open, date_created FROM task ORDER BY \
                         date_created DESC",
-                       &[])
-                .unwrap() {
+                        &[])
+                 .unwrap() {
             let r = &mut result;
             r.push(Task::unpack(row));
         }
@@ -194,8 +206,8 @@ CREATE TABLE IF NOT EXISTS task (
         let rows =
             &conn.query("SELECT id, parent_id, title, body, open, date_created FROM task WHERE id \
                         = $1 ORDER BY date_created DESC",
-                       &[&id])
-                .unwrap();
+                        &[&id])
+                 .unwrap();
 
         if rows.len() != 1 {
             None
@@ -203,6 +215,28 @@ CREATE TABLE IF NOT EXISTS task (
             let row = rows.get(0);
             Some(Task::unpack(row))
         }
+    }
+
+    pub fn find_recently_updated(conn: &Connection, days: i32) -> Vec<Review> {
+        let mut result = vec![];
+        for row in &conn.query("
+SELECT task.id, title as task_title, open, note.id as note_id, note.body as note_body, note.date_start as last_updated
+FROM task, note
+WHERE note.task_id = task.id AND note.date_start > now() - interval '1 days' * $1::int
+ORDER BY task.id, note.id, last_updated DESC;
+",
+                               &[&days]).unwrap() {
+            let r = &mut result;
+            r.push(Review {
+                       task_id: row.get(0),
+                       task_title: row.get(1),
+                       open: row.get(2),
+                       note_id: row.get(3),
+                       note_body: row.get(4),
+                       last_updated: row.get(5),
+                   })
+        }
+        result
     }
 
     pub fn find_aux(conn: &Connection, id: i32) -> Option<TaskAux> {
@@ -214,8 +248,8 @@ FROM task, (SELECT SUM(note.date_end - note.date_start) as \
 WHERE id = $2 ORDER BY \
                     date_created DESC;
 ",
-                   &[&id, &id])
-            .unwrap();
+                               &[&id, &id])
+                        .unwrap();
 
         if rows.len() != 1 {
             None
@@ -224,14 +258,14 @@ WHERE id = $2 ORDER BY \
             let duration: Option<f32> = row.get(6);
             let duration_seconds: f32 = duration.unwrap_or(0f32);
             Some(TaskAux {
-                id: row.get(0),
-                parent_id: row.get(1),
-                title: row.get(2),
-                body: row.get(3),
-                open: row.get(4),
-                date_created: row.get(5),
-                duration_seconds: duration_seconds,
-            })
+                     id: row.get(0),
+                     parent_id: row.get(1),
+                     title: row.get(2),
+                     body: row.get(3),
+                     open: row.get(4),
+                     date_created: row.get(5),
+                     duration_seconds: duration_seconds,
+                 })
         }
     }
 
@@ -240,16 +274,16 @@ WHERE id = $2 ORDER BY \
         for row in
             &conn.query("SELECT id, task_id, body, date_start, date_end FROM note WHERE task_id = \
                         $1 ORDER BY date_start",
-                       &[&id])
-                .unwrap() {
+                        &[&id])
+                 .unwrap() {
             let r = &mut result;
             r.push(Note {
-                id: row.get(0),
-                task_id: row.get(1),
-                body: row.get(2),
-                date_start: row.get(3),
-                date_end: row.get(4),
-            });
+                       id: row.get(0),
+                       task_id: row.get(1),
+                       body: row.get(2),
+                       date_start: row.get(3),
+                       date_end: row.get(4),
+                   });
         }
         result
     }
@@ -260,17 +294,17 @@ WHERE id = $2 ORDER BY \
 SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM \
                     date_end - date_start)::REAL as duration FROM note WHERE task_id = $1 ORDER \
                     BY date_start",
-                   &[&id])
-            .unwrap() {
+                               &[&id])
+                        .unwrap() {
             let r = &mut result;
             r.push(NoteAux {
-                id: row.get(0),
-                task_id: row.get(1),
-                body: row.get(2),
-                date_start: row.get(3),
-                date_end: row.get(4),
-                duration_seconds: row.get(5),
-            });
+                       id: row.get(0),
+                       task_id: row.get(1),
+                       body: row.get(2),
+                       date_start: row.get(3),
+                       date_end: row.get(4),
+                       duration_seconds: row.get(5),
+                   });
         }
         result
     }
@@ -287,8 +321,8 @@ SELECT t1.id, t1.parent_id, t1.title, t1.body, t1.open, t1.date_created \
                     t2.parent_id AND t2.open = TRUE) AND t1.open = TRUE
 ORDER BY date_created \
                     DESC",
-                   &[])
-            .unwrap() {
+                               &[])
+                        .unwrap() {
             let r = &mut result;
             r.push(Task::unpack(row));
         }
@@ -318,7 +352,8 @@ CREATE TABLE IF NOT EXISTS note (
     }
 
     pub fn drop_table(conn: &Connection) {
-        conn.execute("DROP TABLE IF EXISTS note CASCADE", &[]).unwrap();
+        conn.execute("DROP TABLE IF EXISTS note CASCADE", &[])
+            .unwrap();
     }
 
     pub fn create(conn: &Connection,
@@ -329,11 +364,13 @@ CREATE TABLE IF NOT EXISTS note (
                   date_end: DateTime<Local>) {
         let trans = conn.transaction().unwrap();
 
-        trans.execute("INSERT INTO note(task_id, body, date_start, date_end) VALUES ($1, $2, $3, \
+        trans
+            .execute("INSERT INTO note(task_id, body, date_start, date_end) VALUES ($1, $2, $3, \
                       $4)",
                      &[&task_id, &body, &date_start, &date_end])
             .unwrap();
-        trans.execute("UPDATE task SET body = $2 WHERE id = $1",
+        trans
+            .execute("UPDATE task SET body = $2 WHERE id = $1",
                      &[&task_id, &task_body])
             .unwrap();
         trans.commit().unwrap();
