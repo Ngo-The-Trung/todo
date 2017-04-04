@@ -199,7 +199,7 @@ fn dump_reviews(reviews: Vec<Review>) -> String {
             prev = review.task_id;
             result.push_str(&format!("\n{}: [{}] {}\n", review.task_id, status, review.task_title));
         }
-        result.push_str(&indent(format!("{}: on {}-{}-{}\n{}\n",
+        result.push_str(&indent(format!("\n{}: on {}-{}-{}\n{}\n",
                                         review.note_id,
                                         review.last_updated.day(),
                                         review.last_updated.month(),
