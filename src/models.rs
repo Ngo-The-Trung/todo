@@ -191,11 +191,12 @@ CREATE TABLE IF NOT EXISTS task (
 
     pub fn all(conn: &Connection) -> Vec<Task> {
         let mut result = vec![];
-        for row in
-            &conn.query("SELECT id, parent_id, title, body, open, date_created FROM task ORDER BY \
-                        date_created DESC",
-                        &[])
-                 .unwrap() {
+        for row in &conn.query("
+SELECT id, parent_id, title, body, open, date_created
+FROM task
+ORDER BY date_created DESC",
+                               &[])
+                        .unwrap() {
             let r = &mut result;
             r.push(Task::unpack(row));
         }
@@ -203,11 +204,13 @@ CREATE TABLE IF NOT EXISTS task (
     }
 
     pub fn find(conn: &Connection, id: i32) -> Option<Task> {
-        let rows =
-            &conn.query("SELECT id, parent_id, title, body, open, date_created FROM task WHERE id \
-                        = $1 ORDER BY date_created DESC",
-                        &[&id])
-                 .unwrap();
+        let rows = &conn.query("
+SELECT id, parent_id, title, body, open, date_created
+FROM task
+WHERE id = $1
+ORDER BY date_created DESC",
+                               &[&id])
+                        .unwrap();
 
         if rows.len() != 1 {
             None
@@ -220,11 +223,10 @@ CREATE TABLE IF NOT EXISTS task (
     pub fn find_recently_updated(conn: &Connection, days: i32) -> Vec<Review> {
         let mut result = vec![];
         for row in &conn.query("
-SELECT task.id, title as task_title, open, note.id as note_id, note.body as note_body, note.date_start as last_updated
+SELECT task.id, title AS task_title, open, note.id AS note_id, note.body AS note_body, note.date_start AS last_updated
 FROM task, note
 WHERE note.task_id = task.id AND note.date_start > now() - interval '1 days' * $1::int
-ORDER BY task.id, note.id, last_updated DESC;
-",
+ORDER BY task.id DESC, note.id DESC, last_updated DESC",
                                &[&days]).unwrap() {
             let r = &mut result;
             r.push(Review {
@@ -241,13 +243,12 @@ ORDER BY task.id, note.id, last_updated DESC;
 
     pub fn find_aux(conn: &Connection, id: i32) -> Option<TaskAux> {
         let rows = &conn.query("
-SELECT id, parent_id, title, body, open, date_created, EXTRACT(EPOCH FROM \
-                    duration)::REAL
-FROM task, (SELECT SUM(note.date_end - note.date_start) as \
-                    duration FROM note where note.task_id = $1) t
-WHERE id = $2 ORDER BY \
-                    date_created DESC;
-",
+SELECT id, parent_id, title, body, open, date_created, EXTRACT(EPOCH FROM duration)::REAL
+FROM task, (
+    SELECT SUM(note.date_end - note.date_start) AS duration
+    FROM note WHERE note.task_id = $1
+    ) t
+WHERE id = $2 ORDER BY date_created DESC",
                                &[&id, &id])
                         .unwrap();
 
@@ -271,11 +272,13 @@ WHERE id = $2 ORDER BY \
 
     pub fn find_notes(conn: &Connection, id: i32) -> Vec<Note> {
         let mut result = vec![];
-        for row in
-            &conn.query("SELECT id, task_id, body, date_start, date_end FROM note WHERE task_id = \
-                        $1 ORDER BY date_start",
-                        &[&id])
-                 .unwrap() {
+        for row in &conn.query("
+SELECT id, task_id, body, date_start, date_end
+FROM note
+WHERE task_id = $1
+ORDER BY date_start",
+                               &[&id])
+                        .unwrap() {
             let r = &mut result;
             r.push(Note {
                        id: row.get(0),
@@ -291,9 +294,10 @@ WHERE id = $2 ORDER BY \
     pub fn find_notes_aux(conn: &Connection, id: i32) -> Vec<NoteAux> {
         let mut result = vec![];
         for row in &conn.query("
-SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM \
-                    date_end - date_start)::REAL as duration FROM note WHERE task_id = $1 ORDER \
-                    BY date_start",
+SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM date_end - date_start)::REAL AS duration
+FROM note
+WHERE task_id = $1
+ORDER BY date_start",
                                &[&id])
                         .unwrap() {
             let r = &mut result;
@@ -316,11 +320,12 @@ SELECT id, task_id, body, date_start, date_end, EXTRACT(EPOCH FROM \
     pub fn open_leaves(conn: &Connection) -> Vec<Task> {
         let mut result = vec![];
         for row in &conn.query("
-SELECT t1.id, t1.parent_id, t1.title, t1.body, t1.open, t1.date_created \
-                    FROM task t1 WHERE NOT EXISTS (SELECT t2.id FROM task t2 WHERE t1.id = \
-                    t2.parent_id AND t2.open = TRUE) AND t1.open = TRUE
-ORDER BY date_created \
-                    DESC",
+SELECT t1.id, t1.parent_id, t1.title, t1.body, t1.open, t1.date_created
+FROM task t1
+WHERE NOT EXISTS (
+    SELECT t2.id FROM task t2 WHERE t1.id = t2.parent_id AND t2.open = TRUE
+    ) AND t1.open = TRUE
+ORDER BY date_created DESC",
                                &[])
                         .unwrap() {
             let r = &mut result;
